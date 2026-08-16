@@ -12,11 +12,13 @@ Built to run **24/7 on a Linux VPS** with **PM2** or **Docker**, with robust err
 - ✍️ **Content generation** — Produces ready-to-post promotional captions with hashtags.
 - 🔗 **Clean Cinevo links** — Builds SEO-friendly URLs pointing back to your platform (configurable path templates).
 - 🖼️ **Image URLs** — Includes poster and backdrop image URLs for use in posts.
+- 📨 **Telegram auto-posting** — Sends promotional posts to your Telegram channel after each cycle.
 - 🔁 **Auto-retry** — Exponential backoff with jitter for resilient API calls.
 - 🛡️ **Graceful shutdown** — Handles `SIGINT`/`SIGTERM` cleanly.
 - 📦 **Deploy-ready** — Ships with `Dockerfile`, `docker-compose.yml`, and a PM2 `ecosystem.config.js`.
 - 📝 **Structured logging** — Console + rotating file logs via Winston.
 - 🧱 **Modular & type-safe** — Clean TypeScript architecture with strict typing.
+
 
 ---
 
@@ -31,7 +33,9 @@ cinevo-viral-bot/
 │   │   ├── contentGenerator.ts# Promotional caption generation
 │   │   ├── cinevoLinker.ts    # Cinevo URL builder
 │   │   ├── outputWriter.ts    # Writes JSON/Markdown output
+│   │   ├── telegram.ts        # Telegram channel auto-posting
 │   │   └── scheduler.ts       # Interval-based scheduler
+
 │   ├── types/             # Shared TypeScript types
 │   ├── utils/logger.ts    # Winston logger
 │   ├── bot.ts             # Bot orchestrator (single cycle)
@@ -99,7 +103,30 @@ npm start
 
 ---
 
+## 📨 Telegram Auto-Posting
+
+The bot can automatically send each generated promotional post to your Telegram channel after every cycle.
+
+### Setup
+
+1. **Create a bot** with [@BotFather](https://t.me/BotFather) on Telegram to get a **bot token**.
+2. **Create a channel** (or use an existing one) and add your bot as an **admin**.
+3. **Get the channel ID** — either the channel's `@username` (e.g. `@cinevo_movies`) or its numeric ID (e.g. `-1001234567890`).
+4. **Add the credentials** to your `.env`:
+
+   ```env
+   TELEGRAM_BOT_TOKEN=123456789:ABCdefGHIjklMNOpqrsTUVwxyz
+   TELEGRAM_CHANNEL_ID=@cinevo_movies
+   ```
+
+5. **Restart the bot.** On the next cycle, each promo post will be sent to the channel as a formatted HTML message (title, rating, overview, caption, hashtags, and a "Watch on Cinevo" link).
+
+> **Note:** If either `TELEGRAM_BOT_TOKEN` or `TELEGRAM_CHANNEL_ID` is empty, Telegram integration is automatically disabled and the bot runs normally without posting. Telegram failures are logged but never crash or interrupt the bot's cycle.
+
+---
+
 ## ⚙️ Configuration Reference
+
 
 All configuration is done via environment variables (see `.env.example`).
 
@@ -113,7 +140,10 @@ All configuration is done via environment variables (see `.env.example`).
 | `CINEVO_BASE_URL` | `https://streamflixx-seven.vercel.app` | Base URL of the Cinevo site. |
 | `CINEVO_MOVIE_PATH` | `/movie/{id}` | Path template for movie links. |
 | `CINEVO_TV_PATH` | `/tv/{id}` | Path template for TV links. |
+| `TELEGRAM_BOT_TOKEN` | *(empty)* | Telegram bot token (from @BotFather). Leave empty to disable. |
+| `TELEGRAM_CHANNEL_ID` | *(empty)* | Telegram channel ID or @username. Leave empty to disable. |
 | `BOT_INTERVAL_MINUTES` | `60` | How often to run a cycle (minutes). |
+
 | `TRENDING_LIMIT` | `10` | Max items per cycle (1–20). |
 | `TRENDING_MEDIA_TYPE` | `both` | `movie`, `tv`, or `both`. |
 | `OUTPUT_DIR` | `./output` | Where generated content is written. |

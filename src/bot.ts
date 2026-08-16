@@ -9,10 +9,12 @@
 import { getConfig } from './config';
 
 import { TmdbClient } from './services/tmdbClient';
+import { TelegramClient } from './services/telegram';
 import { generatePromoPosts } from './services/contentGenerator';
 import { writeCycleOutput } from './services/outputWriter';
 import { log } from './utils/logger';
 import { CycleResult } from './types';
+
 
 
 
@@ -25,9 +27,11 @@ import { CycleResult } from './types';
  */
 export class CinevoBot {
   private readonly tmdb: TmdbClient;
+  private readonly telegram: TelegramClient;
 
   constructor() {
     this.tmdb = new TmdbClient();
+    this.telegram = new TelegramClient();
   }
 
   /**
@@ -35,6 +39,7 @@ export class CinevoBot {
    *   1. Fetch trending movies/TV from TMDB.
    *   2. Generate promotional posts with Cinevo links.
    *   3. Write the output to disk.
+   *   4. Send the promotional posts to the configured Telegram channel.
    *
    * @returns The cycle result, or null if the cycle failed.
    */
@@ -72,6 +77,17 @@ export class CinevoBot {
       const writtenFiles = writeCycleOutput(result);
       log.info(`Cycle complete. Wrote ${writtenFiles.length} output file(s).`);
 
+      // 4. Send promotional posts to Telegram (best-effort; never crashes the cycle).
+      try {
+        await this.telegram.sendPromoPosts(posts);
+      } catch (telegramError) {
+        log.error(
+          `Telegram integration failed: ${
+            telegramError instanceof Error ? telegramError.message : String(telegramError)
+          }`
+        );
+      }
+
       const elapsedMs = Date.now() - startedAt.getTime();
       log.info(`=== Cycle finished in ${elapsedMs}ms ===`);
 
@@ -84,3 +100,5 @@ export class CinevoBot {
     }
   }
 }
+
+
