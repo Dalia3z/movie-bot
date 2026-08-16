@@ -47,15 +47,18 @@ export class Scheduler {
     void this.runCycle();
 
     // Schedule subsequent cycles.
+    //
+    // IMPORTANT: Do NOT call `timer.unref()` here. The interval timer is
+    // the primary mechanism that keeps the Node.js event loop alive so the
+    // bot runs as a long-lived background service. Calling `unref()` would
+    // allow the process to exit as soon as the first cycle completes (since
+    // nothing else keeps the loop alive), causing PM2/Docker to restart it
+    // in a tight loop. The timer is cleared explicitly in `stop()`.
     this.timer = setInterval(() => {
       void this.runCycle();
     }, this.intervalMs);
-
-    // Prevent the timer from keeping the process alive after stop().
-    if (this.timer.unref) {
-      this.timer.unref();
-    }
   }
+
 
   /**
    * Stop the scheduler. Any in-flight cycle will complete, but no
