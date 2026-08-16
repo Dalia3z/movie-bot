@@ -1,10 +1,15 @@
 /**
  * Telegram integration service.
  *
- * Sends promotional posts to a Telegram channel via the Telegram Bot API
- * (`/sendMessage`). Reads `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHANNEL_ID`
- * from the environment. All failures are logged and swallowed so that a
- * Telegram error never crashes or interrupts the bot's main flow.
+ * Sends promotional posts to a Telegram channel via the Telegram Bot API.
+ * Each post is sent as a **photo message** (`/sendPhoto`) using the item's
+ * poster image, with the promotional text as the caption. If a poster is
+ * missing or fails to load, it gracefully falls back to a text message
+ * (`/sendMessage`) so the post is never lost.
+ *
+ * Reads `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHANNEL_ID` from the environment.
+ * All failures are logged and swallowed so that a Telegram error never
+ * crashes or interrupts the bot's main flow.
  */
 
 import axios, { AxiosInstance } from 'axios';
@@ -16,6 +21,10 @@ const TELEGRAM_API_BASE = 'https://api.telegram.org';
 
 /** Maximum message length allowed by Telegram (4096 chars). */
 const MAX_MESSAGE_LENGTH = 4096;
+
+/** Maximum caption length allowed by Telegram for photo messages (1024 chars). */
+const MAX_CAPTION_LENGTH = 1024;
+
 
 /** A custom error type for Telegram API failures. */
 export class TelegramApiError extends Error {
@@ -66,8 +75,13 @@ export class TelegramClient {
   /**
    * Send a batch of promotional posts to the configured Telegram channel.
    *
-   * Each post is sent as its own message. If Telegram is not configured,
-   * this is a no-op. Errors are logged and swallowed so the bot continues.
+   * Each post is sent as its own message. If a poster image is available,
+   * it is sent as a photo message (`/sendPhoto`) with the promo text as the
+   * caption. If the poster is missing or the photo request fails, it falls
+   * back to a plain text message (`/sendMessage`) so the post is never lost.
+   *
+   * If Telegram is not configured, this is a no-op. Errors are logged and
+   * swallowed so the bot continues.
    *
    * @param posts - The promotional posts to send.
    * @returns The number of messages successfully sent.
@@ -91,9 +105,26 @@ export class TelegramClient {
     for (const post of posts) {
       try {
         const text = this.formatPost(post);
+
+        // Prefer a photo message with the poster image; fall back to text.
+        if (post.posterUrl) {
+          try {
+            await this.sendPhoto(post.posterUrl, text);
+            sent += 1;
+            log.info(`Sent Telegram photo for "${post.title}" (${post.tmdbId}).`);
+            continue;
+          } catch (photoError) {
+            log.warn(
+              `Photo send failed for "${post.title}" (${post.tmdbId}), falling back to text: ` +
+                `${photoError instanceof Error ? photoError.message : String(photoError)}`
+            );
+          }
+        }
+
+        // Fallback: send as a plain text message.
         await this.sendMessage(text);
         sent += 1;
-        log.info(`Sent Telegram message for "${post.title}" (${post.tmdbId}).`);
+        log.info(`Sent Telegram text message for "${post.title}" (${post.tmdbId}).`);
       } catch (error) {
         log.error(
           `Failed to send Telegram message for "${post.title}" (${post.tmdbId}): ` +
@@ -106,6 +137,7 @@ export class TelegramClient {
     log.info(`Telegram batch complete. Sent ${sent}/${posts.length} message(s).`);
     return sent;
   }
+
 
   /**
    * Send a single text message to the configured channel.
@@ -136,6 +168,43 @@ export class TelegramClient {
       );
     }
   }
+
+  /**
+   * Send a photo message to the configured channel.
+   *
+   * Uses the `/sendPhoto` endpoint with the poster image URL and the
+   * promotional text as the caption. The caption is truncated to Telegram's
+   * 1024-character limit for photo messages.
+   *
+   * @param photoUrl - Absolute URL of the poster image.
+   * @param caption - The promotional text (max 1024 chars).
+   * @throws TelegramApiError if the request fails.
+   */
+  public async sendPhoto(photoUrl: string, caption: string): Promise<void> {
+    if (!this.enabled) {
+      throw new TelegramApiError('Telegram integration is not configured.');
+    }
+
+    // Telegram rejects photo captions longer than 1024 characters.
+    const safeCaption =
+      caption.length > MAX_CAPTION_LENGTH ? caption.slice(0, MAX_CAPTION_LENGTH) : caption;
+
+    try {
+      await this.http.post('/sendPhoto', {
+        chat_id: this.channelId,
+        photo: photoUrl,
+        caption: safeCaption,
+        parse_mode: 'HTML',
+      });
+    } catch (error) {
+      const statusCode = this.extractStatusCode(error);
+      throw new TelegramApiError(
+        `Telegram sendPhoto failed: ${this.extractMessage(error)}`,
+        statusCode
+      );
+    }
+  }
+
 
   /**
    * Format a single promo post into a Telegram-friendly HTML message.

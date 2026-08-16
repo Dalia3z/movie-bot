@@ -119,9 +119,10 @@ The bot can automatically send each generated promotional post to your Telegram 
    TELEGRAM_CHANNEL_ID=@cinevo_movies
    ```
 
-5. **Restart the bot.** On the next cycle, each promo post will be sent to the channel as a formatted HTML message (title, rating, overview, caption, hashtags, and a "Watch on Cinevo" link).
+5. **Restart the bot.** On the next cycle, each promo post will be sent to the channel as a **photo message** featuring the movie/TV poster image, with the promotional text as the caption (title, rating, overview, caption, hashtags, and a "Watch on Cinevo" link).
 
-> **Note:** If either `TELEGRAM_BOT_TOKEN` or `TELEGRAM_CHANNEL_ID` is empty, Telegram integration is automatically disabled and the bot runs normally without posting. Telegram failures are logged but never crash or interrupt the bot's cycle.
+> **Note:** If either `TELEGRAM_BOT_TOKEN` or `TELEGRAM_CHANNEL_ID` is empty, Telegram integration is automatically disabled and the bot runs normally without posting. If a poster image is missing or fails to load, the bot gracefully falls back to a text-only message so the post is never lost. Telegram failures are logged but never crash or interrupt the bot's cycle.
+
 
 ---
 
