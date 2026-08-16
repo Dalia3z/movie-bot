@@ -1,0 +1,35 @@
+# ============================================================
+# Cinevo Viral Bot — Docker Compose
+#
+# Simplifies running the bot on a VPS with Docker.
+#
+# Usage:
+#   docker compose up -d --build
+#   docker compose logs -f
+#   docker compose down
+# ============================================================
+
+services:
+  cinevo-viral-bot:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: cinevo-viral-bot:latest
+    container_name: cinevo-viral-bot
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      # Override output/log dirs to point at mounted volumes.
+      OUTPUT_DIR: /app/output
+      LOG_TO_FILE: "true"
+    volumes:
+      # Persist generated content and logs on the host.
+      - ./output:/app/output
+      - ./logs:/app/logs
+    # No ports are exposed — this bot is outbound-only.
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
